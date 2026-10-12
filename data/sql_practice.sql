@@ -79,3 +79,54 @@ SELECT p.student_id,p.gender,p.exam_score,e.hometown
 FROM performance p
 LEFT JOIN extra_info e
 ON p.student_id = e.student_id;
+
+--D16--
+-- ==============================
+-- 题1：ROW_NUMBER()演示：给全部学生，按考试分数降序，生成全局行号
+SELECT student_id,exam_score,gender,parental_education_level,
+ROW_NUMBER() OVER(ORDER BY exam_score DESC)AS row_no
+FROM performance;
+
+-- 题2：RANK()演示：全局按分数降序排名，分数相同排名会并列、跳号
+SELECT student_id,exam_score,gender,parental_education_level,
+RANK() OVER(ORDER BY exam_score DESC)AS rank_no
+FROM performance;
+
+-- 题3：DENSE_RANK()演示：稠密排名，并列不跳号
+SELECT student_id,exam_score,gender,parental_education_level,
+DENSE_RANK() OVER(ORDER BY exam_score DESC)AS dense_rank_no
+FROM performance;
+
+-- 题4【重点】PARTITION BY分区：按【家长教育水平】分组，组内按分数降序行号
+-- 需求：每个parental_education_level分组内部，给学生生成组内行号
+SELECT
+    student_id,exam_score,gender,parental_education_level,
+    ROW_NUMBER() OVER(PARTITION BY parental_education_level ORDER BY exam_score DESC)AS row_no_in_group
+FROM performance;
+
+-- 题5：CTE实现分组取每组前2名！每个家长教育水平分组，取分数最高2位学生
+/*
+需求说明：
+1.先用CTE，在CTE内部用窗口函数生成分组行号group_rn
+2.外层WHERE筛选 group_rn <= 2
+⚠️重点：窗口函数不能直接写在WHERE里面过滤！SQL执行顺序：FROM→WHERE→SELECT
+WHERE运行的时候，SELECT中的窗口计算还没做完，拿不到别名group_rn，直接写会报错！
+*/
+WITH rank_cte AS(
+    SELECT
+        student_id,exam_score,gender,parental_education_level,ROW_NUMBER() OVER(PARTITION BY parental_education_level ORDER BY exam_score DESC)AS group_rn
+        FROM performance)
+
+SELECT *
+FROM rank_cte
+WHERE group_rn <= 2 
+
+-- 练习：需求：按 gender 性别分区，每个性别内部，对 exam_score 做 RANK 排名，并且只要每个性别排名第 1 的学生。
+WITH rank_cte AS(
+    SELECT student_id,exam_score,gender,parental_education_level,RANK()OVER(PARTITION BY gender ORDER BY exam_score DESC)AS gender_rank
+    FROM performance
+)
+
+SELECT*
+FROM rank_cte
+WHERE gender_rank=1
